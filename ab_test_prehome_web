@@ -1,0 +1,440 @@
+CREATE OR REPLACE TABLE `walmart-mexico.extendo_dashboards_2021.ab_test_preHome` AS
+
+WITH BOUNCES_EA AS(
+    SELECT
+        parse_date('%Y%m%d',date) AS date,
+        device.deviceCategory AS deviceCategory,
+        experiment.experimentVariant AS experimentVariant,
+        'EA' AS hallway,
+        'Bounces' AS event,
+        COUNT(totals.bounces)/COUNT(totals.visits) AS bounceRate
+    FROM
+        `alert-tiger-210816.50408115.ga_sessions_20220330`,
+        UNNEST (hits) AS hits,
+        UNNEST (experiment) AS experiment
+    WHERE
+        experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+    GROUP BY 
+        1,2,3,4
+),
+
+ATC_EA AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(totalEvents) AS totalEvents,
+        SUM(uniqueEvents) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            'EA' AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'ATC' AS event,
+            COUNT(hits.eventInfo.eventAction) AS totalEvents,
+            COUNT(DISTINCT CONCAT(fullvisitorid, CAST(visitId AS string), COALESCE(hits.eventInfo.eventAction,''), COALESCE(hits.eventInfo.eventLabel, ''))) AS uniqueEvents,
+        FROM
+            `alert-tiger-210816.50408115.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            --AND _table_suffix BETWEEN FORMAT_DATE('%Y%m%d',DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) AND FORMAT_DATE('%Y%m%d',DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
+            --AND _table_suffix BETWEEN '20211212' AND '20211212'
+            --AND _table_suffix BETWEEN '20200812' AND '20200812'
+            --AND _table_suffix BETWEEN '20220113' AND 'DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)'
+            hits.eventInfo.eventCategory = 'Enhanced Ecommerce' 
+            AND hits.eventInfo.eventAction = 'Add To Cart'
+            --AND experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+            AND experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+        GROUP BY 
+            1,2,3,4,5,6,7,8
+        )
+    GROUP BY
+        1,2,3,4,5
+),
+
+PAGEVIEWS_EA AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(totalEvents) AS totalEvents,
+        SUM(uniqueEvents) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            'EA' AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'Pageview' AS event,
+            COUNT(hits.page.pagePath) AS totalEvents,
+            COUNT(DISTINCT CONCAT(fullvisitorid, CAST(visitId AS string), COALESCE(hits.page.pagePath,''))) AS uniqueEvents
+        FROM
+            `alert-tiger-210816.50408115.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            hits.type = 'PAGE' 
+            AND experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+        GROUP BY 
+            1,2,3,4,5,6,7,8,9)
+    GROUP BY 
+        1,2,3,4,5
+),
+
+TRANSACTIONS_EA AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(transaction) AS totalEvents,
+        SUM(transaction2) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            'EA' AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'Transactions' AS event,
+            COUNT( DISTINCT hits.transaction.transactionid) AS transaction,
+            COUNT( DISTINCT hits.transaction.transactionid) AS transaction2,
+        FROM
+            `alert-tiger-210816.50408115.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            hits.transaction.transactionId IS NOT NULL 
+            AND hits.transaction.transactionRevenue/1000000 > 0
+            AND experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+        GROUP BY 
+            1,2,3,4,5,6,7,8
+    )
+    GROUP BY
+        1,2,3,4,5
+
+),
+
+USERS_EA AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(users) AS totalEvents,
+        SUM(sessions) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            'EA' AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'Users' AS event,
+            COUNT( DISTINCT fullVisitorId) AS users,
+            COUNT( DISTINCT CONCAT(fullVisitorId, "-", visitId)) AS sessions,
+        FROM
+            `alert-tiger-210816.50408115.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+        GROUP BY 
+            1,2,3,4,5,6,7,8
+    )
+    GROUP BY 
+        1,2,3,4,5 
+),
+
+BOUNCE AS(
+    SELECT 
+        parse_date('%Y%m%d',date) AS date,
+        device.deviceCategory AS deviceCategory,
+        experiment.experimentVariant AS experimentVariant,
+        (SELECT value FROM UNNEST(hits.customDimensions) WHERE index=126) AS hallway,
+        'Bounces' AS event,
+        COUNT(totals.bounces)/COUNT(totals.visits) AS bounceRate
+    FROM 
+        `walmart-ecommerce-214323.84671804.ga_sessions_20220330`,
+        UNNEST (hits) AS hits,
+        UNNEST (experiment) AS experiment
+    WHERE
+        fullVisitorId IN(
+            SELECT DISTINCT
+                fullVisitorId
+            FROM
+                `alert-tiger-210816.50408115.ga_sessions_20220330`,
+                UNNEST (hits) AS hits,
+                UNNEST (experiment) AS experiment
+            WHERE
+                experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ')
+    GROUP BY 
+        1,2,3,4,5),
+
+ATC AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(totalEvents) AS totalEvents,
+        SUM(uniqueEvents) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            (SELECT value FROM UNNEST(hits.customDimensions) WHERE index=126) AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'ATC' AS event,
+            COUNT(hits.eventInfo.eventAction) AS totalEvents,
+            COUNT(DISTINCT CONCAT(fullvisitorid, CAST(visitId AS string), COALESCE(hits.eventInfo.eventAction,''), COALESCE(hits.eventInfo.eventLabel, ''))) AS uniqueEvents,
+        FROM
+            `walmart-ecommerce-214323.84671804.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            --AND _table_suffix BETWEEN FORMAT_DATE('%Y%m%d',DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) AND FORMAT_DATE('%Y%m%d',DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
+            --AND _table_suffix BETWEEN '20211212' AND '20211212'
+            --AND _table_suffix BETWEEN '20200812' AND '20200812'
+            --AND _table_suffix BETWEEN '20220113' AND 'DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)'
+            hits.eventInfo.eventCategory = 'Enhanced Ecommerce' 
+            AND hits.eventInfo.eventAction = 'Add To Cart'
+            --AND experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ'
+            AND fullVisitorId IN(
+                SELECT DISTINCT
+                    fullVisitorId
+                FROM
+                    `alert-tiger-210816.50408115.ga_sessions_20220330`,
+                    UNNEST (hits) AS hits,
+                    UNNEST (experiment) AS experiment
+                WHERE
+                    experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ')
+        GROUP BY 
+            1,2,3,4,5,6,7,8
+        )
+    GROUP BY
+        1,2,3,4,5
+),
+
+PAGEVIEWS AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(totalEvents) AS totalEvents,
+        SUM(uniqueEvents) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            (SELECT value FROM UNNEST(hits.customDimensions) WHERE index=126) AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'Pageview' AS event,
+            COUNT(hits.page.pagePath) AS totalEvents,
+            COUNT(DISTINCT CONCAT(fullvisitorid, CAST(visitId AS string), COALESCE(hits.page.pagePath,''))) AS uniqueEvents
+        FROM
+            `walmart-ecommerce-214323.84671804.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            hits.type = 'PAGE' 
+            AND fullVisitorId IN(
+                SELECT DISTINCT
+                    fullVisitorId
+                FROM
+                    `alert-tiger-210816.50408115.ga_sessions_20220330`,
+                    UNNEST (hits) AS hits,
+                    UNNEST (experiment) AS experiment
+                WHERE
+                    experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ')
+        GROUP BY 
+            1,2,3,4,5,6,7,8,9)
+    GROUP BY 
+        1,2,3,4,5
+),
+
+TRANSACTIONS AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(transaction) AS totalEvents,
+        SUM(transaction2) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            (SELECT value FROM UNNEST(hits.customDimensions) WHERE index=126) AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'Transactions' AS event,
+            COUNT( DISTINCT hits.transaction.transactionid) AS transaction,
+            COUNT( DISTINCT hits.transaction.transactionid) AS transaction2,
+        FROM
+            `walmart-ecommerce-214323.84671804.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            hits.transaction.transactionId IS NOT NULL 
+            AND hits.transaction.transactionRevenue/1000000 > 0
+            AND fullVisitorId IN(
+                SELECT DISTINCT
+                    fullVisitorId
+                FROM
+                    `alert-tiger-210816.50408115.ga_sessions_20220330`,
+                    UNNEST (hits) AS hits,
+                    UNNEST (experiment) AS experiment
+                WHERE
+                    experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ')
+        GROUP BY 
+            1,2,3,4,5,6,7,8
+    )
+    GROUP BY
+        1,2,3,4,5
+
+),
+
+USERS AS(
+    SELECT
+        date,
+        deviceCategory,
+        experimentVariant,
+        hallway,
+        event,
+        SUM(users) AS totalEvents,
+        SUM(sessions) AS uniqueEvents
+    FROM(
+        SELECT
+            -- General information
+            parse_date('%Y%m%d',date) AS date,
+            device.deviceCategory AS deviceCategory,
+            experiment.experimentVariant AS experimentVariant,
+            (SELECT value FROM UNNEST(hits.customDimensions) WHERE index=126) AS hallway,
+            hits.page.pagePath AS page,
+            -- User information
+            CAST(fullVisitorId AS STRING) AS fullVisitorId,
+            CAST(visitId AS STRING) AS visitId,
+            CONCAT(fullVisitorId, "-", visitId) AS fullVisitId,
+            -- Event information
+            'Users' AS event,
+            COUNT( DISTINCT fullVisitorId) AS users,
+            COUNT( DISTINCT CONCAT(fullVisitorId, "-", visitId)) AS sessions,
+        FROM
+            `walmart-ecommerce-214323.84671804.ga_sessions_20220330`,
+            UNNEST (hits) AS hits,
+            UNNEST (experiment) AS experiment
+        WHERE
+            fullVisitorId IN(
+                SELECT DISTINCT
+                    fullVisitorId
+                FROM
+                    `alert-tiger-210816.50408115.ga_sessions_20220330`,
+                    UNNEST (hits) AS hits,
+                    UNNEST (experiment) AS experiment
+                WHERE
+                    experiment.experimentId = '4kf2te99Tpm29pw_9mqBNQ')
+        GROUP BY 
+            1,2,3,4,5,6,7,8
+    )
+    GROUP BY 
+        1,2,3,4,5 
+)
+
+SELECT
+    *
+FROM
+    ATC
+UNION ALL
+SELECT
+    *
+FROM
+    PAGEVIEWS
+UNION ALL
+SELECT
+    *
+FROM
+    TRANSACTIONS
+UNION ALL
+SELECT
+    *
+FROM
+    USERS
+UNION ALL
+SELECT
+    *
+FROM
+    ATC_EA
+UNION ALL
+SELECT
+    *
+FROM
+    PAGEVIEWS_EA
+UNION ALL
+SELECT
+    *
+FROM
+    TRANSACTIONS_EA
+UNION ALL
+SELECT
+    *
+FROM
+    USERS_EA
